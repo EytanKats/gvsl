@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="abby" remoteFilesAllowedToDisappearOnAutoupload="false">
+    <serverData>
+      <paths name="a80">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/kats/projects/gvsl" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="abby">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/share/data_supergrover3/kats/projects/gvsl" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>
