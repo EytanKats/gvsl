@@ -3,7 +3,6 @@ sys.path.append('./')
 sys.path.append('../')
 sys.path.append('../simple_converge/')
 
-import os
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -11,7 +10,7 @@ from torch.utils.data import DataLoader
 from models.gvsl import GVSL
 from utils.STN import SpatialTransformer, AffineTransformer
 from utils.Transform_self import SpatialTransform, AppearanceTransform
-from utils.dataloader_heart_self_train import DatasetFromFolder3D as DatasetFromFolder3D_train
+from utils.dataloader_self_train import DatasetFromFolder3D as DatasetFromFolder3D_train
 from utils.losses import gradient_loss, ncc_loss, MSE
 from utils.utils import AverageMeter
 import numpy as np
@@ -24,18 +23,18 @@ class Trainer(object):
                  iters=200,
                  batch_size=1,
                  model_name='GVSL',
-                 # unlabeled_dir='/share/data_supergrover3/kats/data/nako_1000/nii_allmod_preprocessed',
-                 unlabeled_dir='/mnt/share/data/nako_1000/nii_allmod_preprocessed',
+                 data_file_path='/mnt/share/data/amos/dataset_preprocessed_ct/annotations/ssl_240.json',
+                 data_root_dir='/mnt/share/data/amos',
                  results_dir='results',
-                 checkpoint_dir='/mnt/share/experiments/label/gvsl/nako_1000_pretraining'):
+                 checkpoint_dir='/mnt/share/experiments/label/gvsl/amosct_240_pretraining'):
         super(Trainer, self).__init__()
 
         mlops_settings = {
             'use_mlops': True,
-            'project_name': 'LABEL',
-            'task_name': 'gvsl_nako_1000_pretraining',
+            'project_name': 'Label',
+            'task_name': 'gvsl_amosct_240_pretraining',
             'task_type': 'training',
-            'tags': ['GVSL', 'NAKO_1000'],
+            'tags': ['GVSL', 'AMOSCT_240'],
             'connect_arg_parser': False,
             'connect_frameworks': False,
             'resource_monitoring': True,
@@ -48,7 +47,6 @@ class Trainer(object):
         self.epoches = epoches
         self.iters = iters
         self.lr = lr
-        self.unlabeled_dir = unlabeled_dir
 
         self.results_dir = results_dir
         self.checkpoint_dir = checkpoint_dir
@@ -98,7 +96,7 @@ class Trainer(object):
         self.softmax = nn.Softmax(dim=1)
 
         # initialize the dataloader
-        train_dataset = DatasetFromFolder3D_train(self.unlabeled_dir)
+        train_dataset = DatasetFromFolder3D_train(data_file_path, data_root_dir)
         self.dataloader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
         # define loss
