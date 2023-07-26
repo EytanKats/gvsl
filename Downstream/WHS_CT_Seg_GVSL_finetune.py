@@ -4,6 +4,10 @@ sys.path.append('../')
 sys.path.append('../simple_converge/')
 
 import os
+# Set enumeration order of GPUs to be same as for 'nvidia-smi' command and choose visible GPUs
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+
 from os.path import join
 
 import torch
@@ -20,21 +24,21 @@ import SimpleITK as sitk
 from simple_converge.mlops.MLOpsTask import MLOpsTask
 
 class Trainer(object):
-    def __init__(self, k=0, n_classes=6, lr=1e-4, epoches=200, iters=32, batch_size=1,
-                 model_name='gvsl_nako_16f2_seg_fromscratch',
+    def __init__(self, k=0, n_classes=13, lr=1e-4, epoches=200, iters=24, batch_size=1,
+                 model_name='gvsl_amos_24mri_seg_fromscratch',
                  labeled_dir='',
                  test_dir='',
                  val_dir='',
-                 results_dir='/share/data_supergrover3/kats/experiments/label/gvsl/nako_16f2_fromscratch',
-                 checkpoint_dir='/share/data_supergrover3/kats/experiments/label/gvsl/nako_16f2_fromscratch/checkpoints'):
+                 results_dir='',
+                 checkpoint_dir='/share/data_supergrover3/kats/experiments/label/gvsl/amos_24mri_seg_fromscratch/checkpoints'):
         super(Trainer, self).__init__()
 
         mlops_settings = {
             'use_mlops': True,
-            'project_name': 'LABEL',
-            'task_name': 'gvsl_nako_16f2_seg_fromscratch',
+            'project_name': 'Label',
+            'task_name': 'gvsl_amos_24mri_seg_fromscratch',
             'task_type': 'training',
-            'tags': ['GVSL', 'NAKO_16f2', 'fromscratch'],
+            'tags': ['GVSL', 'AMOS_24mri', 'fromscratch'],
             'connect_arg_parser': False,
             'connect_frameworks': False,
             'resource_monitoring': True,
@@ -59,7 +63,10 @@ class Trainer(object):
         self.model_name = model_name
 
         # initialize networks
-        self.Seger = UNet3D_GVSL(n_classes=n_classes)
+        self.Seger = UNet3D_GVSL(
+            n_classes=n_classes,
+            pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_140.pth')
+            # pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_140.pth')
 
         if torch.cuda.is_available():
             self.Seger = self.Seger.cuda()
@@ -111,7 +118,7 @@ class Trainer(object):
     def val(self):
         self.Seger.eval()
         loss = []
-        dice_all_mean = np.zeros(shape=(5,))
+        dice_all_mean = np.zeros(shape=(self.n_classes-1,))
         for i, (img, lab, name) in enumerate(self.dataloader_val):
             name = name[0]
             lab = lab.data.numpy()[0]
@@ -268,7 +275,9 @@ class Trainer(object):
 
                 self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'mean_dice', val_dice, epoch + 1)
 
-                for idx, label in enumerate(['liver', 'spleen', 'right_kidney', 'left_kidney', 'pancreas']):
+                # for idx, label in enumerate(['liver', 'spleen', 'right_kidney', 'left_kidney', 'pancreas']):
+                for idx, label in enumerate(['spleen', 'right kidney', 'left kidney', 'gall bladder', 'esophagus',
+                                             'liver', 'stomach', 'aorta', 'postcava', 'pancreas', 'right_adrenal_gland', 'left_adrenal_gland']):
                     print(f'mean dice for {label}: {dice_all_mean[idx]}')
                     self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'dice_{label}', dice_all_mean[idx], epoch + 1)
 
