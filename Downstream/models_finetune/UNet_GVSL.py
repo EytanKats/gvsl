@@ -215,12 +215,13 @@ class GVSL(nn.Module):
 
 
 class UNet3D_GVSL(nn.Module):
-    def __init__(self, n_channels=1, n_classes=1, chs=(32, 64, 128, 256, 512, 256, 128, 64, 32)):
+    def __init__(self, n_channels=1, n_classes=1, chs=(32, 64, 128, 256, 512, 256, 128, 64, 32), pretrained_weights=None):
         super(UNet3D_GVSL, self).__init__()
         self.n_channels = n_channels
 
         self.unet_pre = GVSL()
-        # self.unet_pre.load_state_dict(torch.load('/mnt/share/experiments/label/gvsl/nako_1000_pretraining/GVSL_epoch_180.pth'))
+        if pretrained_weights is not None:
+            self.unet_pre.load_state_dict(torch.load(pretrained_weights))
         self.unet = self.unet_pre.unet
 
         self.out_conv = nn.Conv3d(chs[-1], n_classes, kernel_size=3, padding=1)
@@ -232,4 +233,5 @@ class UNet3D_GVSL(nn.Module):
         out = self.out_conv(x)
 
         return self.softmax(out)
+        # return out
 
