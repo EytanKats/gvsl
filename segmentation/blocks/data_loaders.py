@@ -1,5 +1,5 @@
 from monai import transforms
-from monai.data import Dataset, DataLoader
+from monai.data import CacheDataset, DataLoader
 
 from segmentation.core.data_utils import read_json_data_file
 
@@ -59,7 +59,7 @@ def get_data_loaders(settings):
     train_loaders_list = []
     for train_files in train_files_list:
         train_transform = get_train_transform(settings)
-        train_ds = Dataset(data=train_files, transform=train_transform)
+        train_ds = CacheDataset(data=train_files, transform=train_transform)
         train_loader = DataLoader(
             dataset=train_ds,
             batch_size=settings['dataloader']['batch_size'],
@@ -75,7 +75,7 @@ def get_data_loaders(settings):
     val_loaders_list = []
     for val_files in val_files_list:
         val_transform = get_val_transform(settings)
-        val_ds = Dataset(data=val_files, transform=val_transform)
+        val_ds = CacheDataset(data=val_files, transform=val_transform)
         val_loader = DataLoader(
             dataset=val_ds,
             batch_size=1,
