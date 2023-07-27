@@ -1,4 +1,4 @@
-from torch.optim import AdamW
+from torch.optim import Adam
 
 
 def get_optimizer(
@@ -6,10 +6,9 @@ def get_optimizer(
         model):
 
     params = model.parameters()
-    optimizer = AdamW(
+    optimizer = Adam(
         params,
-        lr=settings['optimizer']['lr'],
-        weight_decay=settings['optimizer']['weight_decay']
+        lr=settings['optimizer']['lr']
     )
 
     return optimizer
