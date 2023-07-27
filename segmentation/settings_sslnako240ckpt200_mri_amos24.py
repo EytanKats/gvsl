@@ -1,9 +1,9 @@
 mlops_settings = {
     'use_mlops': True,
     'project_name': 'Label',
-    'task_name': 'gvsl_finetuning100_amos_mri2mri_nako2amos',
+    'task_name': 'gvsl_sslnako240ckpt200_mri_amos24',
     'task_type': 'training',
-    'tags': ['fromscratch', 'ssl_ckpt100', 'mri2mri', 'nako2amos'],
+    'tags': ['gvsl', 'sslnako240ckpt200', 'mri', 'amos24'],
     'connect_arg_parser': False,
     'connect_frameworks': False,
     'resource_monitoring': True,
@@ -11,15 +11,15 @@ mlops_settings = {
 }
 
 manager_settings = {
-    'output_folder': '/share/data_supergrover3/kats/experiments/label/gvsl/gvsl_finetuning100_amos_mri2mri_nako2amos/',
-    'active_folds': [0, 1, 2],
+    'output_folder': '/share/data_supergrover3/kats/experiments/label/gvsl/gvsl_sslnako240ckpt200_mri_amos24/',
+    'active_folds': [0, 1, 2, 3, 4],
     'restore_checkpoint': False,
     'restore_checkpoint_path': ''
 }
 
 trainer_settings = {
-    'epochs': 300,
-    'val_freq': 10,
+    'epochs': 200,
+    'val_freq': 1,
     'monitor': 'dice_mean',
     'monitor_regime': 'max',
     'ckpt_freq': 1,
@@ -49,41 +49,41 @@ dataset_settings = {
         'stomach': 6,
         'aorta': 7,
         'inferior_vena_cava': 8,
-        'pancreas': 10,
-        'right_adrenal_gland': 11,
-        'left_adrenal_gland': 12
+        'pancreas': 9,
+        'right_adrenal_gland': 10,
+        'left_adrenal_gland': 11
     }
 }
 
 transforms_settings = {
-    'num_samples': 4,
+
 }
 
 data_loader_settings = {
-    'batch_size': 2,
+    'batch_size': 1,
     'num_workers': 4
 }
 
 model_settings = {
     'architecture': 'unet3d_gvsl_finetune',
-    'pretrained_weights': '/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_100.pth',
+    'pretrained_weights': '/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_200.pth',
     'img_size': (128, 128, 128),
-    'out_channels': 13,
+    'out_channels': 14,
     'val_roi_size': (96, 96, 96),
     'val_sw_batch_size': 1,
     'overlap': 0.5
 }
 
 optimizer_settings = {
-    'lr': 1e-4,
-    'weight_decay': 1e-5
+    'lr': 1e-4
 }
 
 loss_functions_settings = {
     'loss_name': 'dice',
-    'include_background': False,
+    'include_background': True,
     'to_onehot_y': True,
-    'sigmoid': True
+    'sigmoid': False,
+    'softmax': True
 }
 
 metrics_settings = {

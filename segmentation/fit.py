@@ -17,7 +17,7 @@ import GPUtil as gpu
 from simple_converge.manager.Manager import fit
 from simple_converge.mlops.MLOpsTask import MLOpsTask
 
-from settings import settings
+from settings_randominit_mri_amos24 import settings
 from segmentation.blocks.models import get_model
 from segmentation.blocks.loss_functions import get_loss_functions
 from segmentation.blocks.metrics import get_metrics
