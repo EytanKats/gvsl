@@ -43,7 +43,7 @@ dataset_settings = {
         'spleen': 0,
         'right_kidney': 1,
         'left_kidney': 2,
-        'gallblader': 3,
+        'gallbladder': 3,
         'esophagus': 4,
         'liver': 5,
         'stomach': 6,
