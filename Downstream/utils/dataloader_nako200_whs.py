@@ -47,19 +47,19 @@ class DatasetFromFolder3D(data.Dataset):
 
         train_files, val_files = read_json_data_file(
             # data_file_path='/mnt/share/data/nako/annotations/niiregion2_demopartial_wmod_fold2_tr16.json',
-            data_file_path='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_ct/annotations/dataset_ct.json',
+            data_file_path='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_ct/annotations/sup_train_24_f0.json',
             # data_dir='/mnt/share/data/nako',
-            data_dir='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_ct'
+            data_dir='/share/data_supergrover3/kats/data/amos/'
         )
 
         if mode == 'train':
-            np.random.seed(2019)
-            self.files = np.random.choice(train_files, size=40, replace=False).tolist()
-            # self.files = train_files
+            # np.random.seed(2019)
+            # self.files = np.random.choice(train_files, size=40, replace=False).tolist()
+            self.files = train_files
         else:
-            np.random.seed(2019)
-            self.files = np.random.choice(val_files, size=20, replace=False).tolist()
-            # self.files = val_files
+            # np.random.seed(2019)
+            # self.files = np.random.choice(val_files, size=20, replace=False).tolist()
+            self.files = val_files
 
         # self.labeled_filenames = [x for x in listdir(join(labeled_file_dir, 'image')) if is_image_file(x)]
         # self.labeled_file_dir = labeled_file_dir
