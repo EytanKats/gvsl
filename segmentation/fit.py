@@ -6,7 +6,7 @@ sys.path.append('../simple_converge/')
 import os
 # Set enumeration order of GPUs to be same as for 'nvidia-smi' command and choose visible GPUs
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 # import logging
 # logging.disable(logging.WARNING)
@@ -22,6 +22,7 @@ from segmentation.blocks.models import get_model
 from segmentation.blocks.loss_functions import get_loss_functions
 from segmentation.blocks.metrics import get_metrics
 from segmentation.blocks.optimizers import get_optimizer
+from segmentation.blocks.schedulers import get_scheduler
 from segmentation.blocks.data_loaders import get_data_loaders
 from segmentation.blocks.applications import get_app
 
@@ -47,7 +48,7 @@ if __name__ == "__main__":
         architecture=get_model,
         loss_function=get_loss_functions,
         metric=get_metrics,
-        scheduler=None,
+        scheduler=get_scheduler,
         optimizer=get_optimizer,
         app=get_app(),
         train_dataset=None,

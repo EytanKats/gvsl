@@ -11,8 +11,8 @@ mlops_settings = {
 }
 
 manager_settings = {
-    'output_folder': '/share/data_supergrover3/kats/experiments/label/gvsl/gvsl_randominit_mri_amos24/',
-    'active_folds': [0, 1, 2, 3, 4],
+    'output_folder': '/share/data_supergrover3/kats/experiments/label/gvsl/gvsl_randominit_mri_amos24_sc/',
+    'active_folds': [0],
     'restore_checkpoint': False,
     'restore_checkpoint_path': ''
 }
@@ -39,19 +39,29 @@ dataset_settings = {
         '/share/data_supergrover3/kats/data/amos/dataset_preprocessed_mri/annotations/sup_train_24_f4.json'
     ],
 
+    # 'labels': {
+    #     'spleen': 0,
+    #     'right_kidney': 1,
+    #     'left_kidney': 2,
+    #     'gallbladder': 3,
+    #     'esophagus': 4,
+    #     'liver': 5,
+    #     'stomach': 6,
+    #     'aorta': 7,
+    #     'inferior_vena_cava': 8,
+    #     'pancreas': 9,
+    #     'right_adrenal_gland': 10,
+    #     'left_adrenal_gland': 11
+    # }
     'labels': {
         'spleen': 0,
         'right_kidney': 1,
         'left_kidney': 2,
-        'gallbladder': 3,
-        'esophagus': 4,
-        'liver': 5,
-        'stomach': 6,
-        'aorta': 7,
-        'inferior_vena_cava': 8,
-        'pancreas': 9,
-        'right_adrenal_gland': 10,
-        'left_adrenal_gland': 11
+        'liver': 3,
+        'stomach': 4,
+        'aorta': 5,
+        'inferior_vena_cava': 6,
+        'pancreas': 7
     }
 }
 
@@ -68,7 +78,7 @@ model_settings = {
     'architecture': 'unet3d_gvsl_finetune',
     'pretrained_weights': None,
     'img_size': (128, 128, 128),
-    'out_channels': 14,
+    'out_channels': 9,
     'val_roi_size': (96, 96, 96),
     'val_sw_batch_size': 1,
     'overlap': 0.5
@@ -76,6 +86,11 @@ model_settings = {
 
 optimizer_settings = {
     'lr': 1e-4
+}
+
+scheduler_settings = {
+    'max_epochs': 200,
+    'min_lr': 1e-5
 }
 
 loss_functions_settings = {
@@ -111,6 +126,7 @@ settings = {
     'dataloader': data_loader_settings,
     'model': model_settings,
     'optimizer': optimizer_settings,
+    'scheduler': scheduler_settings,
     'loss': loss_functions_settings,
     'metrics': metrics_settings,
     'app': app_settings,
