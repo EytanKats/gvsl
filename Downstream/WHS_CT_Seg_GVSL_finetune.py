@@ -15,8 +15,9 @@ from torch.utils.data import DataLoader
 
 from models_finetune.UNet_GVSL import UNet3D_GVSL
 
-from utils.dataloader_heart_whs_test import DatasetFromFolder3D as DatasetFromFolder3D_test
-from utils.dataloader_nako200_whs import DatasetFromFolder3D
+# from utils.dataloader_heart_whs_test import DatasetFromFolder3D as DatasetFromFolder3D_test
+# from utils.dataloader_nako200_whs import DatasetFromFolder3D
+from utils.monai_data_loader import get_data_loaders
 from utils.losses import dice_loss
 from utils.utils import AverageMeter, dice, to_categorical
 import numpy as np
@@ -24,21 +25,21 @@ import SimpleITK as sitk
 from simple_converge.mlops.MLOpsTask import MLOpsTask
 
 class Trainer(object):
-    def __init__(self, k=0, n_classes=13, lr=1e-4, epoches=200, iters=24, batch_size=1,
-                 model_name='gvsl_amos_24mri_seg_fromscratch',
+    def __init__(self, k=0, n_classes=9, lr=1e-4, epoches=80, iters=24, batch_size=1,
+                 model_name='gvsl_sslamosct240ckpt1000_mri_amos24_f2',
                  labeled_dir='',
                  test_dir='',
                  val_dir='',
                  results_dir='',
-                 checkpoint_dir='/share/data_supergrover3/kats/experiments/label/gvsl/amos_24mri_seg_fromscratch/checkpoints'):
+                 checkpoint_dir='/share/data_supergrover3/kats/experiments/label/gvsl/gvsl_sslamosct240ckpt1000_mri_amos24/2'):
         super(Trainer, self).__init__()
 
         mlops_settings = {
             'use_mlops': True,
             'project_name': 'Label',
-            'task_name': 'gvsl_amos_24mri_seg_fromscratch',
+            'task_name': 'gvsl_sslamosct240ckpt1000_mri_amos24_f2',
             'task_type': 'training',
-            'tags': ['GVSL', 'AMOS_24mri', 'fromscratch'],
+            'tags': ['gvsl', 'sslamosct240ckpt1000', 'mri', 'amos24', 'f2'],
             'connect_arg_parser': False,
             'connect_frameworks': False,
             'resource_monitoring': True,
@@ -53,7 +54,7 @@ class Trainer(object):
         self.epoches = epoches
         self.iters=iters
         self.lr = lr
-        self.crop_shape = (192, 128, 96)
+        self.crop_shape = (128, 128, 128)
         self.labeled_dir = labeled_dir
         self.test_dir = test_dir
         self.val_dir = val_dir
@@ -65,27 +66,32 @@ class Trainer(object):
         # initialize networks
         self.Seger = UNet3D_GVSL(
             n_classes=n_classes,
-            pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_140.pth')
-            # pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/nako_240_pretraining/GVSL_epoch_140.pth')
+            # pretrained_weights=None)
+            pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/amosct_240_pretraining/GVSL_epoch_1000.pth')
 
         if torch.cuda.is_available():
             self.Seger = self.Seger.cuda()
 
         self.optS = torch.optim.Adam(self.Seger.parameters(), lr=lr)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optS, T_max=self.epoches, eta_min=1e-5)
 
         # Data iterator
-        train_dataset = DatasetFromFolder3D('train', num_classes=n_classes, shape=self.crop_shape)
-        self.dataloader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-        val_dataset = DatasetFromFolder3D('val', num_classes=n_classes)
-        self.dataloader_val = DataLoader(val_dataset, batch_size=batch_size)
+        # train_dataset = DatasetFromFolder3D('train', num_classes=n_classes, shape=self.crop_shape)
+        # self.dataloader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        # val_dataset = DatasetFromFolder3D('val', num_classes=n_classes)
+        # self.dataloader_val = DataLoader(val_dataset, batch_size=batch_size)
         # test_dataset = DatasetFromFolder3D_test(self.test_dir)
         # self.dataloader_test = DataLoader(test_dataset, batch_size=batch_size)
+
+        self.dataloader_train, self.dataloader_val, self.dataloader_test = get_data_loaders()
 
         # define loss
         self.L_seg = dice_loss
 
         # define loss log
         self.L_seg_log = AverageMeter(name='L_seg_aug')
+        self.val_dice = 0
+        self.dice_all_mean = np.zeros(shape=(self.n_classes - 1,))
 
     def train_iterator(self, img, lab):
         seg = self.Seger(img)
@@ -102,36 +108,42 @@ class Trainer(object):
 
     def train_epoch(self, epoch):
         self.Seger.train()
-        for i in range(self.iters):
-            img, lab, name = next(self.dataloader_train.__iter__())
+        # for i in range(self.iters):
+        #     img, lab, name = next(self.dataloader_train.__iter__())
+        for data in self.dataloader_train:
             if torch.cuda.is_available():
-                img = img.cuda()
-                lab = lab.cuda()
+                img = data['image'].cuda()
+                lab = data['label'].cuda()
 
             self.train_iterator(img, lab)
 
-        res = '\t'.join(['Epoch: [%d/%d]' % (epoch + 1, self.epoches), self.L_seg_log.__str__()])
+        res = f'Epoch: {epoch + 1}/{self.epoches}, {self.L_seg_log.avg.cpu().numpy()}'
         print(res)
 
-        self.mlops_task.log_scalar_to_mlops_server(f'Training loss', f'dice', self.L_seg_log.avg, epoch + 1)
+        self.mlops_task.log_scalar_to_mlops_server(f'Training loss', f'dice', self.L_seg_log.avg.cpu().numpy(), epoch + 1)
 
-    def val(self):
+    def val(self, dataloader):
         self.Seger.eval()
         loss = []
         dice_all_mean = np.zeros(shape=(self.n_classes-1,))
-        for i, (img, lab, name) in enumerate(self.dataloader_val):
-            name = name[0]
-            lab = lab.data.numpy()[0]
+        # for i, (img, lab, name) in enumerate(self.dataloader_val):
+        #     name = name[0]
+        for data in dataloader:
+            img = data['image']
+            lab = data['label'].numpy()[0]
+
+            # lab = lab.data.numpy()[0]
+
             seg = to_categorical(self.predict(img), self.n_classes)
             dice_all = []
             for i in range(self.n_classes - 1):
                 dice_all.append(dice(seg[i + 1], lab[i + 1]))
-            print(name, np.mean(dice_all))
+            print(np.mean(dice_all))
 
             dice_all_mean = dice_all_mean + np.array(dice_all)
             loss.append(np.mean(dice_all))
 
-        dice_all_mean = dice_all_mean / len(self.dataloader_val)
+        dice_all_mean = dice_all_mean / len(dataloader)
         return np.mean(loss), dice_all_mean
 
     def test(self):
@@ -266,27 +278,43 @@ class Trainer(object):
             self.L_seg_log.reset()
             self.train_epoch(epoch + self.k)
             if epoch%1 == 0:
-                val_dice, dice_all_mean = self.val()
+                val_dice, dice_all_mean = self.val(self.dataloader_val)
                 # self.val_logwriter.writeLog([val_dice])
                 if val_dice_best <= val_dice:
                     val_dice_best = val_dice
-                    torch.save(self.Seger.state_dict(),
-                               '{0}/{1}_epoch_{2}.pth'.format(self.checkpoint_dir, self.model_name, 'val_dice_best'))
+                    torch.save(self.Seger.state_dict(), '{0}/{1}_epoch_{2}.pth'.format(self.checkpoint_dir, self.model_name, 'val_dice_best'))
 
-                self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'mean_dice', val_dice, epoch + 1)
+                self.val_dice = 0.7 * self.val_dice + 0.3 * val_dice
+                self.dice_all_mean = 0.7 * self.dice_all_mean + 0.3 * dice_all_mean
+
+                print(f'ema dice: {self.val_dice}')
+                self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'mean_dice', self.val_dice, epoch + 1)
 
                 # for idx, label in enumerate(['liver', 'spleen', 'right_kidney', 'left_kidney', 'pancreas']):
-                for idx, label in enumerate(['spleen', 'right kidney', 'left kidney', 'gall bladder', 'esophagus',
-                                             'liver', 'stomach', 'aorta', 'postcava', 'pancreas', 'right_adrenal_gland', 'left_adrenal_gland']):
-                    print(f'mean dice for {label}: {dice_all_mean[idx]}')
-                    self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'dice_{label}', dice_all_mean[idx], epoch + 1)
+                # for idx, label in enumerate(['1_spleen', '2_kidney_right', '3_kidney_left', '4_gallbladder',
+                #                              '5_esophagus', '6_liver', '7_stomach', '8_aorta', '9_postcava',
+                #                              '10_pancreas', '11_adrenal_gland_right', '12_adrenal_gland_left']):
+                for idx, label in enumerate(['1_spleen', '2_kidney_right', '3_kidney_left',
+                                             '6_liver', '7_stomach', '8_aorta', '9_postcava',
+                                            '10_pancreas']):
+                    print(f'mean dice for {label}: {self.dice_all_mean[idx]}')
+                    self.mlops_task.log_scalar_to_mlops_server(f'Validation dice', f'dice_{label}', self.dice_all_mean[idx], epoch + 1)
 
             self.checkpoint(self.epoches - self.k)
+            self.scheduler.step()
 
 if __name__ == '__main__':
+    torch.multiprocessing.set_sharing_strategy('file_system')
     trainer = Trainer()
     trainer.train()
-    # trainer.load_best()
-    # trainer.test()
+    trainer.load_best()
+    val_dice, dice_all_mean = trainer.val(trainer.dataloader_test)
 
+    print(f'-------------------------')
+    print(f'TEST RESULTS ')
+    print(f'MEAN DICE: {val_dice}')
+    for idx, label in enumerate(['1_spleen', '2_kidney_right', '3_kidney_left',
+                                 '6_liver', '7_stomach', '8_aorta', '9_postcava',
+                                 '10_pancreas']):
+        print(f'Dice for {label}: {dice_all_mean[idx]}')
 
