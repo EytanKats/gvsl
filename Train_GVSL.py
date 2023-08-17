@@ -7,13 +7,19 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+import time
+import numpy as np
+import matplotlib.pyplot as plt
+
 from models.gvsl import GVSL
+from utils.utils import AverageMeter
+from utils.monai_data_loader import get_data_loader
+# from utils.dataloader_self_train import DatasetFromFolder3D as DatasetFromFolder3D_train
+from utils.dataloader_heart_self_train import DatasetFromFolder3D as DatasetFromFolder3D_train
+from utils.losses import gradient_loss, ncc_loss, MSE
 from utils.STN import SpatialTransformer, AffineTransformer
 from utils.Transform_self import SpatialTransform, AppearanceTransform
-from utils.dataloader_self_train import DatasetFromFolder3D as DatasetFromFolder3D_train
-from utils.losses import gradient_loss, ncc_loss, MSE
-from utils.utils import AverageMeter
-import numpy as np
+
 from simple_converge.mlops.MLOpsTask import MLOpsTask
 
 class Trainer(object):
@@ -23,18 +29,18 @@ class Trainer(object):
                  iters=200,
                  batch_size=1,
                  model_name='GVSL',
-                 data_file_path='/mnt/share/data/amos/dataset_preprocessed_ct/annotations/ssl_240.json',
-                 data_root_dir='/mnt/share/data/amos',
+                 data_file_path='/mnt/share/data/nako_1000/nii_region2_wcontrast_preprocessed_new/annotations/ssl_1078.json',
+                 data_root_dir='/mnt/share/data/nako_1000',
                  results_dir='results',
-                 checkpoint_dir='/mnt/share/experiments/label/gvsl/amosct_240_pretraining'):
+                 checkpoint_dir='/mnt/share/experiments/label/gvsl/nako_1000_pretraining_plainunet_fixed'):
         super(Trainer, self).__init__()
 
         mlops_settings = {
             'use_mlops': True,
             'project_name': 'Label',
-            'task_name': 'gvsl_amosct_240_pretraining',
+            'task_name': 'nako_1000_pretraining_plainunet_fixed',
             'task_type': 'training',
-            'tags': ['GVSL', 'AMOSCT_240'],
+            'tags': ['gvsl', 'mri', 'sslnako1000'],
             'connect_arg_parser': False,
             'connect_frameworks': False,
             'resource_monitoring': True,
@@ -95,9 +101,13 @@ class Trainer(object):
 
         self.softmax = nn.Softmax(dim=1)
 
-        # initialize the dataloader
-        train_dataset = DatasetFromFolder3D_train(data_file_path, data_root_dir)
+        # self.data_file_path = data_file_path
+        # self.data_root_dir = data_root_dir
+        # self.dataloader_train = get_data_loader(data_file_path, data_root_dir)
+        # train_dataset = DatasetFromFolder3D_train(data_file_path, data_root_dir)
+        train_dataset = DatasetFromFolder3D_train('/mnt/share/data/nako_1000/nii_region2_wcontrast_preprocessed/')
         self.dataloader_train = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
 
         # define loss
         self.L_smooth = gradient_loss
@@ -130,13 +140,45 @@ class Trainer(object):
 
     def train_epoch(self, epoch):
         self.gvsl.train()
+
+        # data_iter = iter(self.dataloader_train)
         for i in range(self.iters):
             unlabed_img1, unlabed_img2 = next(self.dataloader_train.__iter__())
+
+            # try:
+            #     data = next(data_iter)
+            # except StopIteration:
+            #     data_iter = iter(self.dataloader_train)
+            #     data = next(data_iter)
+            #
+            # unlabed_img1 = torch.unsqueeze(data['image'][0], dim=0)
+            # unlabed_img2 = torch.unsqueeze(data['image'][1], dim=0)
+
+            # unlabed_img1_np = unlabed_img1.data.numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img1_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
+            #
+            # unlabed_img2_np = unlabed_img2.data.numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img2_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
 
             # damage the image 1 for restoration
             unlabed_img1_aug = unlabed_img1.data.numpy()[0].copy()
             unlabed_img1_aug = self.style_aug.rand_aug(unlabed_img1_aug)
             unlabed_img1_aug = torch.from_numpy(unlabed_img1_aug[np.newaxis, :, :, :, :])
+
+            # unlabed_img1_aug_np = unlabed_img1_aug.data.numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img1_aug_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
 
             if torch.cuda.is_available():
                 unlabed_img1 = unlabed_img1.cuda()
@@ -148,6 +190,27 @@ class Trainer(object):
             unlabed_img1_aug = self.spatial_aug.augment_spatial(unlabed_img1_aug, mat, code_spa)
             unlabed_img1 = self.spatial_aug.augment_spatial(unlabed_img1, mat, code_spa)
             unlabed_img2 = self.spatial_aug.augment_spatial(unlabed_img2, mat, code_spa)
+
+            # unlabed_img1_np = unlabed_img1.data.cpu().numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img1_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
+            #
+            # unlabed_img2_np = unlabed_img2.data.cpu().numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img2_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
+            #
+            # unlabed_img1_aug_np = unlabed_img1_aug.data.cpu().numpy()[0, 0, ...].copy()
+            # for image_slice in range(63, 65):
+            #     plt.imshow(unlabed_img1_aug_np[:, :, image_slice], cmap='gray')
+            #     plt.colorbar()
+            #     plt.show()
+            #     plt.close()
 
             self.train_iterator(unlabed_img1, unlabed_img1_aug, unlabed_img2)
 
@@ -171,12 +234,19 @@ class Trainer(object):
 
     def train(self):
         for epoch in range(self.epoches-self.k):
+
+            start = time.time()
+
             self.L_ncc_log.reset()
             self.L_MSE_log.reset()
             self.L_smooth_log.reset()
             self.train_epoch(epoch+self.k)
             if epoch % 20 == 0:
                 self.checkpoint(epoch)
+
+            end = time.time()
+            print(f'Time per epoch: {end-start}')
+
         self.checkpoint(self.epoches-self.k)
 
 if __name__ == '__main__':
