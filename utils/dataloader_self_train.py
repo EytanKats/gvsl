@@ -41,7 +41,7 @@ class DatasetFromFolder3D(data.Dataset):
         random_index = np.random.randint(low=0, high=len(self.unlabeled_filenames))
         unlabeled_img1 = nib.load(self.unlabeled_filenames[random_index]['image']).get_fdata()
 
-        unlabeled_img1 = zoom(unlabeled_img1, (128. / unlabeled_img1.shape[0], 128. / unlabeled_img1.shape[1], 128. / unlabeled_img1.shape[2]), order=1)
+        unlabeled_img1 = zoom(unlabeled_img1, (192. / unlabeled_img1.shape[0], 128. / unlabeled_img1.shape[1], 96. / unlabeled_img1.shape[2]), order=1)
         unlabeled_img1 = unlabeled_img1 - np.min(unlabeled_img1)
         unlabeled_img1 = unlabeled_img1 / np.max(unlabeled_img1)
 
@@ -59,7 +59,7 @@ class DatasetFromFolder3D(data.Dataset):
         random_index = np.random.randint(low=0, high=len(self.unlabeled_filenames))
         unlabeled_img2 = nib.load(self.unlabeled_filenames[random_index]['image']).get_fdata()
 
-        unlabeled_img2 = zoom(unlabeled_img2, (128. / unlabeled_img2.shape[0], 128. / unlabeled_img2.shape[1], 128. / unlabeled_img2.shape[2]), order=1)
+        unlabeled_img2 = zoom(unlabeled_img2, (192. / unlabeled_img2.shape[0], 128. / unlabeled_img2.shape[1], 96. / unlabeled_img2.shape[2]), order=1)
         unlabeled_img2 = unlabeled_img2 - np.min(unlabeled_img2)
         unlabeled_img2 = unlabeled_img2 / np.max(unlabeled_img2)
 
