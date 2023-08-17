@@ -2,8 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.STN import SpatialTransformer, AffineTransformer
 import numpy as np
+from dynamic_network_architectures.architectures.unet import PlainConvUNet
+
+from utils.STN import SpatialTransformer, AffineTransformer
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -106,11 +108,66 @@ class UNet_base(nn.Module):
         return x5, x[:, :, diffZ//2: Z+diffZ//2, diffY//2: Y+diffY//2, diffX // 2:X + diffX // 2]
 
 
+class PlainConvUNet_Local(PlainConvUNet):
+    def __init__(self):
+
+        super().__init__(
+            input_channels=1,
+            n_stages=6,
+            features_per_stage=[32, 64, 128, 256, 320, 320],
+            conv_op=torch.nn.Conv3d,
+            kernel_sizes=[[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
+            strides=[[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
+            n_conv_per_stage=[2, 2, 2, 2, 2, 2],
+            num_classes=13,
+            n_conv_per_stage_decoder=[2, 2, 2, 2, 2],
+            conv_bias=True,
+            norm_op=torch.nn.modules.instancenorm.InstanceNorm3d,
+            norm_op_kwargs={'affine': True, 'eps': 1e-5},
+            dropout_op=None,
+            dropout_op_kwargs=None,
+            nonlin=torch.nn.modules.activation.LeakyReLU,
+            nonlin_kwargs={'inplace': True},
+            deep_supervision=False,
+            nonlin_first=False
+        )
+
+        self.deep_supervision = False
+
+    def forward(self, x):
+
+        skips = self.encoder(x)
+        seg_outputs = []
+        lres_input = skips[-1]
+        for s in range(len(self.decoder.stages)):
+            x = self.decoder.transpconvs[s](lres_input)
+            x = torch.cat((x, skips[-(s + 2)]), 1)
+            x = self.decoder.stages[s](x)
+
+            if self.deep_supervision:
+                seg_outputs.append(self.decoder.seg_layers[s](x))
+            elif s == (len(self.decoder.stages) - 1):
+                seg_outputs.append(self.decoder.seg_layers[-1](x))
+
+            lres_input = x
+
+        seg_outputs = seg_outputs[::-1]
+
+        if not self.deep_supervision:
+            r = seg_outputs[0]
+        else:
+            r = seg_outputs
+
+        return skips[-1], r
+
+
 class GVSL(nn.Module):
     def __init__(self, n_channels=1, chan=(32, 64, 128, 256, 512, 256, 128, 64, 32), win=3):
         super(GVSL, self).__init__()
-        self.unet = UNet_base(n_channels=n_channels, chs=chan)
-        self.f_conv = DoubleConv(1024, 256)
+        # self.unet = UNet_base(n_channels=n_channels, chs=chan)
+        self.unet = PlainConvUNet_Local()
+        # self.f_conv = DoubleConv(1024, 256)
+        self.f_conv = DoubleConv(640, 256)
         self.sp_conv = DoubleConv(64, 16)
 
         self.res_conv = nn.Sequential(nn.Conv3d(32, 16, 3, padding=1),
@@ -221,6 +278,7 @@ class UNet3D_GVSL(nn.Module):
 
         self.unet_pre = GVSL()
         if pretrained_weights is not None:
+            print(f'Load weights: {pretrained_weights}')
             self.unet_pre.load_state_dict(torch.load(pretrained_weights))
         self.unet = self.unet_pre.unet
 
@@ -230,8 +288,9 @@ class UNet3D_GVSL(nn.Module):
 
     def forward(self, x):
         _, x = self.unet(x)
-        out = self.out_conv(x)
+        # out = self.out_conv(x)
 
-        return self.softmax(out)
+        # return self.softmax(out)
         # return out
+        return x
 
