@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from utils.STN import SpatialTransformer, AffineTransformer
 import numpy as np
+from dynamic_network_architectures.architectures.unet import PlainConvUNet
+
+from utils.STN import SpatialTransformer, AffineTransformer
+
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -106,12 +109,49 @@ class UNet_base(nn.Module):
 
         return x5, x[:, :, diffZ//2: Z+diffZ//2, diffY//2: Y+diffY//2, diffX // 2:X + diffX // 2]
 
+class PlainConvUNet_Local(PlainConvUNet):
+    def __init__(self):
+
+        super().__init__(
+            input_channels=1,
+            n_stages=6,
+            features_per_stage=[32, 64, 128, 256, 320, 320],
+            conv_op=torch.nn.Conv3d,
+            kernel_sizes=[[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]],
+            strides=[[1, 1, 1], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]],
+            n_conv_per_stage=[2, 2, 2, 2, 2, 2],
+            num_classes=13,
+            n_conv_per_stage_decoder=[2, 2, 2, 2, 2],
+            conv_bias=True,
+            norm_op=torch.nn.modules.instancenorm.InstanceNorm3d,
+            norm_op_kwargs={'affine': True, 'eps': 1e-5},
+            dropout_op=None,
+            dropout_op_kwargs=None,
+            nonlin=torch.nn.modules.activation.LeakyReLU,
+            nonlin_kwargs={'inplace': True},
+            deep_supervision=False,
+            nonlin_first=False
+        )
+
+    def forward(self, x):
+        skips = self.encoder(x)
+
+        lres_input = skips[-1]
+        for s in range(len(self.decoder.stages)):
+            x = self.decoder.transpconvs[s](lres_input)
+            x = torch.cat((x, skips[-(s + 2)]), 1)
+            x = self.decoder.stages[s](x)
+            lres_input = x
+
+        return skips[-1], x
 
 class GVSL(nn.Module):
     def __init__(self, n_channels=1, chan=(32, 64, 128, 256, 512, 256, 128, 64, 32)):
         super(GVSL, self).__init__()
-        self.unet = UNet_base(n_channels=n_channels, chs=chan)
-        self.f_conv = DoubleConv(1024, 256)
+        # self.unet = UNet_base(n_channels=n_channels, chs=chan)
+        self.unet = PlainConvUNet_Local()
+        # self.f_conv = DoubleConv(1024, 256)
+        self.f_conv = DoubleConv(640, 256)
         self.sp_conv = DoubleConv(64, 16)
 
         self.res_conv = nn.Sequential(nn.Conv3d(32, 16, 3, padding=1),
