@@ -12,7 +12,7 @@ def get_train_transform():
         [
             transforms.LoadImaged(keys=["image", "label"]),
             transforms.AddChanneld(keys=["image", "label"]),
-            transforms.AsDiscreted(keys=["label"], to_onehot=9),
+            transforms.AsDiscreted(keys=["label"], to_onehot=13),
 
             transforms.Spacingd(keys=["image", "label"], pixdim=(3, 3, 3), mode=("bilinear", "nearest")),
             transforms.ScaleIntensityd(keys=["image"], minv=0, maxv=1),
@@ -43,7 +43,7 @@ def get_val_transform():
         [
             transforms.LoadImaged(keys=["image", "label"]),
             transforms.AddChanneld(keys=["image", "label"]),
-            transforms.AsDiscreted(keys=["label"], to_onehot=9),
+            transforms.AsDiscreted(keys=["label"], to_onehot=13),
 
             transforms.Spacingd(keys=["image", "label"], pixdim=(3, 3, 3), mode=("bilinear", "nearest")),
             transforms.ScaleIntensityd(keys=["image"], minv=0, maxv=1),
@@ -61,7 +61,7 @@ def get_val_transform():
 def get_data_loaders():
 
     train_files, val_files = read_json_data_file(
-        data_file_path='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_mri/annotations/sup_train_24_f2.json',
+        data_file_path='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_mri/annotations/sup_train_24_f0.json',
         data_dir='/share/data_supergrover3/kats/data/amos/'
     )
 
@@ -78,17 +78,17 @@ def get_data_loaders():
                 d[k] = os.path.join('/share/data_supergrover3/kats/data/amos/', d[k]) if len(d[k]) > 0 else d[k]
         test_files.append(d)
 
-    train_ds = CacheDataset(data=train_files, transform=get_train_transform())
+    train_ds = Dataset(data=train_files, transform=get_train_transform())
     train_loader = DataLoader(
         dataset=train_ds,
-        batch_size=1,
+        batch_size=2,
         shuffle=True,
         drop_last=True,
         num_workers=4,
         pin_memory=True
     )
 
-    val_ds = CacheDataset(data=val_files, transform=get_train_transform())
+    val_ds = Dataset(data=val_files, transform=get_train_transform())
     val_loader = DataLoader(
         dataset=val_ds,
         batch_size=1,
