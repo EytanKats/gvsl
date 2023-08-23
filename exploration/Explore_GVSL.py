@@ -1,6 +1,5 @@
 import torch
 
-import time
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -14,13 +13,14 @@ from utils.Transform_self import SpatialTransform, AppearanceTransform
 from Downstream.utils.monai_data_loader import get_data_loaders
 
 class Trainer(object):
-    def __init__(self,
-                 results_dir='results',
-                 pretrained_weights='/share/data_supergrover3/kats/experiments/label/gvsl/nako_1000_pretraining/GVSL_epoch_1000.pth'):
+    def __init__(self):
         super(Trainer, self).__init__()
 
-        self.results_dir = results_dir
-        self.pretrained_weights = pretrained_weights
+        self.pretrained_weights = [
+            '',
+            '/mnt/share/experiments/label/gvsl/nako_1000_pretraining/GVSL_epoch_1000.pth',
+            '/mnt/share/experiments/label/gvsl/original/GVSL_epoch_1000.pth'
+            ]
 
         # Data augmentation
         self.spatial_aug = SpatialTransform(do_rotation=True,
@@ -43,7 +43,7 @@ class Trainer(object):
                                             shear_zx=(-np.pi / 18, np.pi / 18),
                                             shear_zy=(-np.pi / 18, np.pi / 18),
                                             do_elastic_deform=True,
-                                            alpha=(0., 128.),
+                                            alpha=(0., 512.),
                                             sigma=(10., 13.))
 
         # transformation for restoration
@@ -78,37 +78,50 @@ class Trainer(object):
                 img1 = img1.cuda()
                 img2 = img2.cuda()
 
-            res_A, warp_BA_atn, warp_BA_stn, aff_mat_BA, flow_BA, fA_l, fB_L = self.gvsl(img1, img2)
-
             label1_np = label1.numpy()
-            f1_np = fA_l.detach().cpu().numpy()[0]
-            spleen_f = np.transpose(f1_np[:, label1_np[1, ...] == 1])
-            kidney_f = np.transpose(f1_np[:, label1_np[2, ...] == 1])
-            liver_f = np.transpose(f1_np[:, label1_np[6, ...] == 1])
-            stomach_f = np.transpose(f1_np[:, label1_np[7, ...] == 1])
+            spleen_loc = np.random.choice(np.sum(label1_np[1, ...] == 1), 1000)
+            kidney_loc = np.random.choice(np.sum(label1_np[2, ...] == 1), 1000)
+            liver_loc = np.random.choice(np.sum(label1_np[6, ...] == 1), 1000)
+            stomach_loc = np.random.choice(np.sum(label1_np[7, ...] == 1), 1000)
 
-            spleen_f = spleen_f[np.random.choice(spleen_f.shape[0], 1000), :]
-            kidney_f = kidney_f[np.random.choice(kidney_f.shape[0], 1000), :]
-            liver_f = liver_f[np.random.choice(liver_f.shape[0], 1000), :]
-            stomach_f = stomach_f[np.random.choice(stomach_f.shape[0], 1000), :]
+            for weights in self.pretrained_weights:
+                if weights:
+                    state_dict = torch.load(weights)
+                    self.gvsl.load_state_dict(state_dict)
+                res_A, warp_BA_atn, warp_BA_stn, aff_mat_BA, flow_BA, fA_l, fB_L = self.gvsl(img1, img2)
 
-            features = np.concatenate([spleen_f, kidney_f, liver_f, stomach_f])
-            labels = np.concatenate([np.ones(1000)*1, np.ones(1000)*2, np.ones(1000)*3, np.ones(1000)*4])
+                self.show_tsne(fA_l, label1, spleen_loc, kidney_loc, liver_loc, stomach_loc)
 
-            tsne = TSNE(n_components=2, verbose=1, random_state=123)
-            z = tsne.fit_transform(features)
+    def show_tsne(self, features, label, spleen_loc, kidney_loc, liver_loc, stomach_loc):
 
-            df = pd.DataFrame()
-            df["y"] = labels
-            df["comp-1"] = z[:, 0]
-            df["comp-2"] = z[:, 1]
+        label1_np = label.numpy()
+        f1_np = features.detach().cpu().numpy()[0]
+        spleen_f = np.transpose(f1_np[:, label1_np[1, ...] == 1])
+        kidney_f = np.transpose(f1_np[:, label1_np[2, ...] == 1])
+        liver_f = np.transpose(f1_np[:, label1_np[6, ...] == 1])
+        stomach_f = np.transpose(f1_np[:, label1_np[7, ...] == 1])
 
-            sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
-                            palette=sns.color_palette("hls", 4),
-                            data=df).set(title="MNIST data T-SNE projection")
-            plt.show()
+        spleen_f = spleen_f[spleen_loc, :]
+        kidney_f = kidney_f[kidney_loc, :]
+        liver_f = liver_f[liver_loc, :]
+        stomach_f = stomach_f[stomach_loc, :]
 
-            print()
+        features = np.concatenate([spleen_f, kidney_f, liver_f, stomach_f])
+        labels = np.concatenate([np.ones(1000) * 1, np.ones(1000) * 2, np.ones(1000) * 3, np.ones(1000) * 4])
+
+        tsne = TSNE(n_components=2, verbose=1, random_state=123)
+        z = tsne.fit_transform(features)
+
+        df = pd.DataFrame()
+        df["y"] = labels
+        df["comp-1"] = z[:, 0]
+        df["comp-2"] = z[:, 1]
+
+        sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
+                        palette=sns.color_palette("hls", 4),
+                        data=df).set(title="T-SNE projection")
+        plt.show()
+        plt.close()
 
     def explore(self):
 
@@ -193,8 +206,8 @@ class Trainer(object):
 
 if __name__ == '__main__':
     trainer = Trainer()
-    trainer.load()
-    trainer.explore()
+    # trainer.load()
+    trainer.tsne()
 
 
 

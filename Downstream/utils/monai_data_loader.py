@@ -61,11 +61,11 @@ def get_val_transform():
 def get_data_loaders():
 
     train_files, val_files = read_json_data_file(
-        data_file_path='/share/data_supergrover3/kats/data/amos/dataset_preprocessed_mri/annotations/sup_train_24_f0.json',
-        data_dir='/share/data_supergrover3/kats/data/amos/'
+        data_file_path='/mnt/share/data/amos/dataset_preprocessed_mri/annotations/sup_train_24_f0.json',
+        data_dir='/mnt/share/data/amos/'
     )
 
-    with open('/share/data_supergrover3/kats/data/amos/dataset_preprocessed_mri/annotations/sup_test_30.json') as f:
+    with open('/mnt/share/data/amos/dataset_preprocessed_mri/annotations/sup_test_30.json') as f:
         json_data = json.load(f)
 
     test_files = []
