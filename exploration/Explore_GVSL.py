@@ -123,6 +123,29 @@ class Trainer(object):
         plt.show()
         plt.close()
 
+
+    def show_transformations(self, warp_BA_atn, warp_BA_stn, flow_BA):
+        flow_BA_np = flow_BA.data.cpu().numpy()[0, 0, ...].copy()
+        for image_slice in range(63, 64):
+            plt.imshow(flow_BA_np[:, :, image_slice])
+            plt.colorbar()
+            plt.show()
+            plt.close()
+
+        warp_BA_atn_np = warp_BA_atn.data.cpu().numpy()[0, 0, ...].copy()
+        for image_slice in range(63, 64):
+            plt.imshow(warp_BA_atn_np[:, :, image_slice], cmap='gray')
+            plt.colorbar()
+            plt.show()
+            plt.close()
+
+        warp_BA_stn_np = warp_BA_stn.data.cpu().numpy()[0, 0, ...].copy()
+        for image_slice in range(63, 64):
+            plt.imshow(warp_BA_stn_np[:, :, image_slice], cmap='gray')
+            plt.colorbar()
+            plt.show()
+            plt.close()
+
     def explore(self):
 
         self.gvsl.eval()
@@ -163,41 +186,29 @@ class Trainer(object):
                 plt.show()
                 plt.close()
 
-            res_A, warp_BA_atn, warp_BA_stn, aff_mat_BA, flow_BA, _, _ = self.gvsl(img1, img1_aug)
+            for weights in self.pretrained_weights:
+                if weights:
+                    state_dict = torch.load(weights)
+                    self.gvsl.load_state_dict(state_dict)
+                res_A, warp_BA_atn, warp_BA_stn, aff_mat_BA, flow_BA, fA_l, fB_L = self.gvsl(img1, img2)
 
-            flow_BA_np = flow_BA.data.cpu().numpy()[0, 0, ...].copy()
-            for image_slice in range(63, 64):
-                plt.imshow(flow_BA_np[:, :, image_slice])
-                plt.colorbar()
-                plt.show()
-                plt.close()
+                self.show_transformations(warp_BA_atn, warp_BA_stn, flow_BA)
 
-            warp_BA_atn_np = warp_BA_atn.data.cpu().numpy()[0, 0, ...].copy()
-            for image_slice in range(63, 64):
-                plt.imshow(warp_BA_atn_np[:, :, image_slice], cmap='gray')
-                plt.colorbar()
-                plt.show()
-                plt.close()
+                # dice_before = []
+                # for i in range(12):
+                #     dice_before.append(dice(label1[i + 1], label2[i + 1]))
+                # print(np.mean(dice_before))
+                #
+                # dice_after = []
+                # for i in range(12):
+                #     warped_label = self.stn(
+                #         self.atn(torch.unsqueeze(torch.unsqueeze(label2[i + 1], dim=0), dim=0), aff_mat_BA,
+                #                  mode='nearest'),
+                #         flow_BA, mode='nearest')
+                #     dice_after.append(dice(label1[i + 1], warped_label[0][0]))
+                # print(np.mean(dice_after))
 
-            warp_BA_stn_np = warp_BA_stn.data.cpu().numpy()[0, 0, ...].copy()
-            for image_slice in range(63, 64):
-                plt.imshow(warp_BA_stn_np[:, :, image_slice], cmap='gray')
-                plt.colorbar()
-                plt.show()
-                plt.close()
-
-            dice_before = []
-            for i in range(12):
-                dice_before.append(dice(label1[i+1], label2[i+1]))
-            print(np.mean(dice_before))
-
-            dice_after = []
-            for i in range(12):
-                warped_label = self.stn(self.atn(torch.unsqueeze(torch.unsqueeze(label2[i+1], dim=0), dim=0), aff_mat_BA, mode='nearest'), flow_BA, mode='nearest')
-                dice_after.append(dice(label1[i+1], warped_label[0][0]))
-            print(np.mean(dice_after))
-
-            print('Bingo')
+            break
 
     def load(self):
         print('Loading weights')
@@ -207,7 +218,7 @@ class Trainer(object):
 if __name__ == '__main__':
     trainer = Trainer()
     # trainer.load()
-    trainer.tsne()
+    trainer.explore()
 
 
 
