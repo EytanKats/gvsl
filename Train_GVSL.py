@@ -3,6 +3,10 @@ sys.path.append('./')
 sys.path.append('../')
 sys.path.append('../simple_converge/')
 
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
