@@ -159,16 +159,18 @@ class Trainer(object):
             # unlabed_img2 = torch.unsqueeze(data['image'][1], dim=0)
 
             # unlabed_img1_np = unlabed_img1.data.numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img1_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
+            #     plt.title('1st image')
             #     plt.show()
             #     plt.close()
             #
             # unlabed_img2_np = unlabed_img2.data.numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img2_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
+            #     plt.title('2nd image')
             #     plt.show()
             #     plt.close()
 
@@ -178,7 +180,7 @@ class Trainer(object):
             unlabed_img1_aug = torch.from_numpy(unlabed_img1_aug[np.newaxis, :, :, :, :])
 
             # unlabed_img1_aug_np = unlabed_img1_aug.data.numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img1_aug_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
             #     plt.show()
@@ -196,21 +198,21 @@ class Trainer(object):
             unlabed_img2 = self.spatial_aug.augment_spatial(unlabed_img2, mat, code_spa)
 
             # unlabed_img1_np = unlabed_img1.data.cpu().numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img1_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
             #     plt.show()
             #     plt.close()
-            #
+
             # unlabed_img2_np = unlabed_img2.data.cpu().numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img2_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
             #     plt.show()
             #     plt.close()
             #
             # unlabed_img1_aug_np = unlabed_img1_aug.data.cpu().numpy()[0, 0, ...].copy()
-            # for image_slice in range(63, 65):
+            # for image_slice in range(64, 65):
             #     plt.imshow(unlabed_img1_aug_np[:, :, image_slice], cmap='gray')
             #     plt.colorbar()
             #     plt.show()
@@ -237,6 +239,10 @@ class Trainer(object):
             torch.load('{0}/{1}_epoch_{2}.pth'.format(self.checkpoint_dir, self.model_name, str(self.k))))
 
     def train(self):
+
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
+
         for epoch in range(self.epoches-self.k):
 
             start = time.time()
