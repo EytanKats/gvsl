@@ -46,6 +46,13 @@ def show_tsne(features, label, title, epoch, idx, output_dir, mlops_task):
     features = np.concatenate([spleen_f, kidney_f, liver_f, stomach_f])
     labels = np.concatenate([['spleen'] * 1000, ['kidney'] * 1000, ['liver'] * 1000, ['stomach'] * 1000])
 
+    plot_name = f'{title}_idx{idx}_ep{epoch}'
+    output_path = os.path.join(output_dir, f'{plot_name}.png')
+    plot_tsne(features, labels, num_classes=4, title=plot_name, show=False, output_path=output_path, mlops_task=None, mlops_iteration=epoch)
+
+
+def plot_tsne(features, labels, num_classes, title='T-SNE projection', show=False, output_path=None, mlops_task=None, mlops_iteration=0):
+
     tsne = TSNE(n_components=2, verbose=1, random_state=123)
     z = tsne.fit_transform(features)
 
@@ -54,13 +61,18 @@ def show_tsne(features, label, title, epoch, idx, output_dir, mlops_task):
     df["comp-1"] = z[:, 0]
     df["comp-2"] = z[:, 1]
 
-    f = sns.scatterplot(x="comp-1", y="comp-2", hue=df.y.tolist(),
-                        palette=sns.color_palette("hls", 4),
-                        data=df).set(title="T-SNE projection")
+    fig, ax = plt.subplots(figsize=(16, 10))
+    sns.scatterplot(ax=ax, x="comp-1", y="comp-2", hue=df.y.tolist(),
+                    palette=sns.color_palette("hls", num_classes),
+                    data=df).set(title=title)
 
-    output_path = os.path.join(output_dir, f'{title}_idx{idx}_ep{epoch}.png')
-    plt.savefig(output_path)
-    # plt.show()
+    if output_path:
+        plt.savefig(output_path)
+
+    if show:
+        plt.show()
+
+    if mlops_task:
+        mlops_task.report_matplotlib_figure(fig, title, mlops_iteration)
+
     plt.close()
-
-    # mlops_task.report_matplotlib_figure(f, f'{title}_idx{idx}', epoch)
