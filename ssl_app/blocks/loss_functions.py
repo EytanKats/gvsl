@@ -6,7 +6,7 @@ def get_loss_functions(settings):
     loss_restoration = mse_loss_restoration
     loss_restoration.__name__ = settings['loss']['restoration_loss_name']
 
-    loss_registration = mse_loss_registration
+    loss_registration = ncc_loss
     loss_registration.__name__ = settings['loss']['registration_loss_name']
 
     loss_flow_regularization = gradient_loss
