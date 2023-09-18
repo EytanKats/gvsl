@@ -1,7 +1,7 @@
 mlops_settings = {
     'use_mlops': True,
     'project_name': 'Label',
-    'task_name': 'ssl_restoration',
+    'task_name': 'sc_nako1000_pretraining_coupled_convex',
     'task_type': 'training',
     'tags': [],
     'connect_arg_parser': False,
@@ -11,7 +11,7 @@ mlops_settings = {
 }
 
 manager_settings = {
-    'output_folder': '/mnt/share/experiments/label/gvsl/ssl_restoration/',
+    'output_folder': '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_coupled_convex/',
     'active_folds': [0],
     'restore_checkpoint': False,
     'restore_checkpoint_path': ''
@@ -55,7 +55,7 @@ transforms_settings = {
 }
 
 data_loader_settings = {
-    'batch_size': 1,
+    'batch_size': 2,
     'num_workers': 4
 }
 
@@ -71,10 +71,10 @@ scheduler_settings = {
 
 loss_functions_settings = {
     'restoration_loss_name': 'restoration_mse',
-    'registration_loss_name': 'registration_mse',
+    'registration_loss_name': 'registration_ncc',
     'flow_regularization_loss_name': 'flow_regularization_gradient',
     'weight_restoration': 1,
-    'weight_registration': 0,
+    'weight_registration': 1,
     'weight_flow_regularization': 0
 }
 

@@ -100,7 +100,7 @@ def get_data_loaders(settings):
     val_ds = MonaiDataset(data=val_files, transform=get_val_transform())
     val_loader = DataLoader(
         dataset=val_ds,
-        batch_size=1,
+        batch_size=2,
         shuffle=False,
         num_workers=4,
         pin_memory=True

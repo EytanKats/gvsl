@@ -1,11 +1,14 @@
 import os
-import torch
 import numpy as np
 from loguru import logger
 import matplotlib.pyplot as plt
 
+import torch
+from torch.nn import functional as functional
+
 from simple_converge.apps.BaseApp import BaseApp
 from ssl_app.core.plots import show_images, show_tsne
+from ssl_app.core.coupled_convex import coupled_convex
 from ssl_app.core.elastic_transform import ElasticTransform
 from ssl_app.core.spatial_augmentations import SpatialTransform
 from ssl_app.core.intensity_augmentations import AppearanceTransform
@@ -160,7 +163,8 @@ class DenseSslApp(BaseApp):
         self.restoration_head.train()
 
         # Get image
-        image_original = data
+        image_original = data[0].unsqueeze(0)
+        image_spatially_augmented = data[1].unsqueeze(0)
 
         # Apply intensity augmentations to get first image view
         image_intensity_augmented = self.style_aug.rand_aug(image_original[0, 0, ...].numpy().copy())
@@ -170,10 +174,15 @@ class DenseSslApp(BaseApp):
         # Send images to device
         image_original = image_original.to(self.device)
         image_intensity_augmented = image_intensity_augmented.to(self.device)
+        image_spatially_augmented = image_spatially_augmented.to(self.device)
 
         # Apply spatial augmentations to get second image view
-        mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
-        image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
+        # mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
+        # image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
+
+        # Apply rotaion90 to get third image view
+        # ax = np.random.permutation(3)[:2]
+        # image_rotated = torch.rot90(torch.clone(image_original), k=1, dims=(ax[0]+2, ax[1]+2))
 
         # image_original_np = image_original.data.cpu().numpy()[0, 0, ...].copy()
         # center_slice = image_original_np.shape[2] // 2
@@ -200,18 +209,27 @@ class DenseSslApp(BaseApp):
         #     plt.close()
 
         # Extract features
-        _, features_original = self.feature_extractor(image_original)
+        x_original, features_original = self.feature_extractor(image_original)
+        # x_rotated, features_rotated = self.feature_extractor(image_rotated)
         _, features_intensity_augmented = self.feature_extractor(image_intensity_augmented)
-        _, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+        x_spatially_augmented, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+
+        flow = coupled_convex(feat_fix=x_original, feat_mov=x_spatially_augmented, use_ice=False, img_shape=image_original.shape[2:])
+        grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_original.shape[2], image_original.shape[3], image_original.shape[4]))
+        image_warped = functional.grid_sample(image_spatially_augmented, grid + flow.permute(0, 2, 3, 4, 1), mode='bilinear')
 
         # Warp spatially augmented version to the original image
-        flow = self.elastic_registration_head(features_original, features_spatially_augmented)
-        image_warped = self.elastic_transform(image_spatially_augmented, flow)
+        # flow = self.elastic_registration_head(features_original, features_spatially_augmented)
+        # image_warped = self.elastic_transform(image_spatially_augmented, flow)
 
         # Restore original image from its intensity augmented version
         image_restored = self.restoration_head(features_intensity_augmented)
 
+        # Rotate features of rotated image back to match features of original image
+        # features_rotated = torch.rot90(features_rotated, k=-1, dims=(ax[0]+2, ax[1]+2))
+
         # Calculate loss
+        # loss_restoration = self.losses_fns[0](features_original, features_rotated)
         loss_restoration = self.losses_fns[0](image_restored, image_original)
         loss_registration = self.losses_fns[1](image_warped, image_original)
         loss_flow_regularization = self.losses_fns[2](flow)
@@ -244,8 +262,9 @@ class DenseSslApp(BaseApp):
         self.restoration_head.eval()
 
         # Get image and label
-        image_original = data['image']
-        label = data['label']
+        image_original = data['image'][0].unsqueeze(0)
+        label = data['label'][0].unsqueeze(0)
+        image_spatially_augmented = data['image'][1].unsqueeze(0)
 
         # Apply intensity augmentations to get first image view
         image_intensity_augmented = self.style_aug.rand_aug(image_original[0, 0, ...].numpy().copy())
@@ -255,22 +274,27 @@ class DenseSslApp(BaseApp):
         # Send images and label to device
         image_original = image_original.to(self.device)
         image_intensity_augmented = image_intensity_augmented.to(self.device)
+        image_spatially_augmented = image_spatially_augmented.to(self.device)
         label = label.to(self.device)
 
         # Apply spatial augmentations to get second image view
-        mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
-        image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
+        # mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
+        # image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
 
         with torch.no_grad():
 
             # Extract features
-            _, features_original = self.feature_extractor(image_original)
+            x_original, features_original = self.feature_extractor(image_original)
             _, features_intensity_augmented = self.feature_extractor(image_intensity_augmented)
-            _, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+            x_spatially_augmented, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+
+            flow = coupled_convex(feat_fix=x_original, feat_mov=x_spatially_augmented, use_ice=False, img_shape=image_original.shape[2:])
+            grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_original.shape[2], image_original.shape[3], image_original.shape[4]))
+            image_warped = functional.grid_sample(image_spatially_augmented, grid + flow.permute(0, 2, 3, 4, 1), mode='bilinear')
 
             # Warp spatially augmented version to the original image
-            flow = self.elastic_registration_head(features_original, features_spatially_augmented)
-            image_warped = self.elastic_transform(image_spatially_augmented, flow)
+            # flow = self.elastic_registration_head(features_original, features_spatially_augmented)
+            # image_warped = self.elastic_transform(image_spatially_augmented, flow)
 
             # Restore original image from its intensity augmented version
             image_restored = self.restoration_head(features_intensity_augmented)
