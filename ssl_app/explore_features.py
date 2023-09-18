@@ -14,23 +14,27 @@ from ssl_app.blocks.data_loaders import read_json_data_file, get_val_transform
 OUTPUT_DIR = '/mnt/share/experiments/label/gvsl/tsne/'
 
 pretrained_weights = [
-    '',
-    '/mnt/share/experiments/label/gvsl/original/GVSL_epoch_1000.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_restoration/0/checkpoint/ckpt-49.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration/0/checkpoint/ckpt-0.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration/0/checkpoint/ckpt-49.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-0.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-49.pth'
+    # '',
+    # '/mnt/share/experiments/label/gvsl/original/GVSL_epoch_1000.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_restoration/0/checkpoint/ckpt-49.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration/0/checkpoint/ckpt-0.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration/0/checkpoint/ckpt-49.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-0.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-49.pth',
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_constrained/0/checkpoint/ckpt-49.pth',
+    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_coupled_convex/0/checkpoint/ckpt-49.pth'
 ]
 
 plot_names = [
-    'random_initialization',
-    'gvsl_paper_released_weights',
-    'restoration_only(models_genesis_augmentations)',
-    'registration_only_1000steps(small_synthetic_elastic_deformations)',
-    'restoration_only_50000steps(small_synthetic_elastic_deformations)',
-    'registration_restoration_1000steps',
-    'registration_restoration_50000steps',
+    # 'random_initialization',
+    # 'gvsl_paper_released_weights',
+    # 'restoration_only(models_genesis_augmentations)',
+    # 'registration_only_1000steps(small_synthetic_elastic_deformations)',
+    # 'registration_only_50000steps(small_synthetic_elastic_deformations)',
+    # 'registration_restoration_1000steps',
+    # 'registration_restoration_50000steps',
+    # 'registration_constrained_50000steps',
+    'coupled_convex_50000steps'
 ]
 
 
@@ -65,7 +69,7 @@ val_files = read_json_data_file(
 val_ds = Dataset(data=val_files, transform=get_val_transform())
 val_loader = DataLoader(
     dataset=val_ds,
-    batch_size=1,
+    batch_size=2,
     shuffle=False,
     num_workers=1,
     pin_memory=True
@@ -77,18 +81,18 @@ for data_idx, data in enumerate(val_loader):
     image = data['image'][0].unsqueeze(0)
     label = data['label'][0].unsqueeze(0)
 
-    # image_2 = data['image'][1].unsqueeze(0)
-    # label_2 = data['label'][1].unsqueeze(0)
+    image_2 = data['image'][1].unsqueeze(0)
+    label_2 = data['label'][1].unsqueeze(0)
 
 
     # Send image to device
     image = image.to(device)
-    # image_2 = image_2.to(device)
+    image_2 = image_2.to(device)
     # image_rot90 = torch.rot90(torch.clone(image[0, 0])).unsqueeze(0).unsqueeze(0)
 
     # Iterate over pretrained weights
     label = label.numpy()[0]
-    # label_2 = label_2.numpy()[0]
+    label_2 = label_2.numpy()[0]
     for plot_name, weights in zip(plot_names, pretrained_weights):
 
         # Create model
@@ -117,16 +121,16 @@ for data_idx, data in enumerate(val_loader):
         _, features = model(image)
         features = features.detach().cpu().numpy()[0]
 
-        # _, features_rot90 = model(image_2)
-        # features_rot90 = features_rot90.detach().cpu().numpy()[0]
+        _, features_rot90 = model(image_2)
+        features_rot90 = features_rot90.detach().cpu().numpy()[0]
 
         features_list = []
-        # features_rot90_list = []
+        features_rot90_list = []
         labels_list = []
-        # labels_rot90_list = []
+        labels_rot90_list = []
         for key, value in labels.items():
             class_features = np.transpose(features[:, label[value, ...] == 1])
-            # class_features_rot90 = np.transpose(features_rot90[:, label_2[value, ...] == 1])
+            class_features_rot90 = np.transpose(features_rot90[:, label_2[value, ...] == 1])
 
             # if class_features.shape[0] > 1000:
             #     sampled_locations = np.random.choice(np.sum(label[value, ...] == 1), 1000, replace=False)
@@ -137,20 +141,20 @@ for data_idx, data in enumerate(val_loader):
             #     class_features_rot90 = class_features_rot90[sampled_locations_rot90, :]
 
             features_list.append(class_features)
-            # features_rot90_list.append(class_features_rot90)
+            features_rot90_list.append(class_features_rot90)
             labels_list.append([key] * class_features.shape[0])
-            # labels_rot90_list.append([key + '_2'] * class_features_rot90.shape[0])
+            labels_rot90_list.append([key + '_2'] * class_features_rot90.shape[0])
 
         # Show / save TSNE plot
-        # plot_tsne(
-        #     np.concatenate([features_list[0], features_list[1], features_list[2], features_list[5], features_list[6],
-        #                     features_rot90_list[0], features_rot90_list[1], features_rot90_list[2], features_rot90_list[5], features_rot90_list[6]]),
-        #     np.concatenate([labels_list[0], labels_list[1], labels_list[2], labels_list[5], labels_list[6],
-        #                     labels_rot90_list[0], labels_rot90_list[1], labels_rot90_list[2], labels_rot90_list[5], labels_rot90_list[6]]),
-        #     num_classes=10,  #len(labels),
-        #     title=plot_name,
-        #     output_path=os.path.join(OUTPUT_DIR, f'{plot_name}_im{data_idx}_2images_ct.png'),
-        #     show=False)
+        plot_tsne(
+            np.concatenate([features_list[0], features_list[1], features_list[2], features_list[5], features_list[6],
+                            features_rot90_list[0], features_rot90_list[1], features_rot90_list[2], features_rot90_list[5], features_rot90_list[6]]),
+            np.concatenate([labels_list[0], labels_list[1], labels_list[2], labels_list[5], labels_list[6],
+                            labels_rot90_list[0], labels_rot90_list[1], labels_rot90_list[2], labels_rot90_list[5], labels_rot90_list[6]]),
+            num_classes=10,  #len(labels),
+            title=plot_name,
+            output_path=os.path.join(OUTPUT_DIR, f'{plot_name}_im{data_idx}_2images_ct.png'),
+            show=True)
 
         plot_tsne(
             np.concatenate(features_list),
@@ -158,7 +162,7 @@ for data_idx, data in enumerate(val_loader):
             num_classes=len(labels),
             title=plot_name,
             output_path=os.path.join(OUTPUT_DIR, f'{plot_name}_single_image_{data_idx}.png'),
-            show=False)
+            show=True)
 
 
 
