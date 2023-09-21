@@ -7,20 +7,25 @@ from dynamic_network_architectures.architectures.unet import PlainConvUNet
 
 from utils.STN import SpatialTransformer, AffineTransformer
 
-class DoubleConv(nn.Module):
+class DoubleConv(torch.nn.Module):
+
     def __init__(self, in_channels, out_channels):
+
         super().__init__()
-        self.double_conv = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(out_channels//8, out_channels),
-            nn.LeakyReLU(0.2),
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.GroupNorm(out_channels//8, out_channels),
-            nn.LeakyReLU(0.2)
+
+        self.double_conv = torch.nn.Sequential(
+            torch.nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
+            torch.nn.GroupNorm(out_channels//8, out_channels),
+            torch.nn.LeakyReLU(0.2),
+            torch.nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
+            torch.nn.GroupNorm(out_channels//8, out_channels),
+            torch.nn.LeakyReLU(0.2)
         )
 
     def forward(self, x):
+
         return self.double_conv(x)
+
 class DoubleConvK1(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -69,15 +74,20 @@ class UNet_base(nn.Module):
         super(UNet_base, self).__init__()
         self.n_channels = n_channels
 
+        self.proj = torch.nn.Conv3d(chs[3], 16, kernel_size=1)
+
         self.inc = DoubleConv(n_channels, chs[0])
+
         self.down1 = Down(chs[0], chs[1])
         self.down2 = Down(chs[1], chs[2])
         self.down3 = Down(chs[2], chs[3])
         self.down4 = Down(chs[3], chs[4])
+
         self.up1 = Up(chs[4] + chs[3], chs[5])
         self.up2 = Up(chs[5] + chs[2], chs[6])
         self.up3 = Up(chs[6] + chs[1], chs[7])
         self.up4 = Up(chs[7] + chs[0], chs[8])
+
         self.__init_weight()
 
     def __init_weight(self):
@@ -95,17 +105,22 @@ class UNet_base(nn.Module):
         diffY = (16 - Y % 16) % 16
         diffX = (16 - X % 16) % 16
         x = F.pad(x, [diffX // 2, diffX - diffX // 2, diffY // 2, diffY - diffY // 2, diffZ // 2, diffZ - diffZ // 2])
+
         x1 = self.inc(x)
+
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
+
+        prj = self.proj(x4)
+
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
 
-        return x5, x[:, :, diffZ//2: Z+diffZ//2, diffY//2: Y+diffY//2, diffX // 2:X + diffX // 2]
+        return prj, x[:, :, diffZ//2: Z+diffZ//2, diffY//2: Y+diffY//2, diffX // 2:X + diffX // 2]
 
 
 class PlainConvUNet_Local(PlainConvUNet):
@@ -164,10 +179,10 @@ class PlainConvUNet_Local(PlainConvUNet):
 class GVSL(nn.Module):
     def __init__(self, n_channels=1, chan=(32, 64, 128, 256, 512, 256, 128, 64, 32), win=3):
         super(GVSL, self).__init__()
-        # self.unet = UNet_base(n_channels=n_channels, chs=chan)
-        self.unet = PlainConvUNet_Local()
-        # self.f_conv = DoubleConv(1024, 256)
-        self.f_conv = DoubleConv(640, 256)
+        self.unet = UNet_base(n_channels=n_channels, chs=chan)
+        # self.unet = PlainConvUNet_Local()
+        self.f_conv = DoubleConv(1024, 256)
+        # self.f_conv = DoubleConv(640, 256)
         self.sp_conv = DoubleConv(64, 16)
 
         self.res_conv = nn.Sequential(nn.Conv3d(32, 16, 3, padding=1),
@@ -277,10 +292,15 @@ class UNet3D_GVSL(nn.Module):
         self.n_channels = n_channels
 
         self.unet_pre = GVSL()
+        # if pretrained_weights is not None:
+        #     print(f'Load weights: {pretrained_weights}')
+        #     self.unet_pre.load_state_dict(torch.load(pretrained_weights))
+        self.unet = self.unet_pre.unet
+
         if pretrained_weights is not None:
             print(f'Load weights: {pretrained_weights}')
-            self.unet_pre.load_state_dict(torch.load(pretrained_weights))
-        self.unet = self.unet_pre.unet
+            # self.unet_pre.load_state_dict(torch.load(pretrained_weights))
+            self.unet.load_state_dict(torch.load(pretrained_weights)['feature_extractor'])
 
         self.out_conv = nn.Conv3d(chs[-1], n_classes, kernel_size=3, padding=1)
 
@@ -288,9 +308,9 @@ class UNet3D_GVSL(nn.Module):
 
     def forward(self, x):
         _, x = self.unet(x)
-        # out = self.out_conv(x)
+        out = self.out_conv(x)
 
         # return self.softmax(out)
-        # return out
-        return x
+        return out
+        # return x
 
