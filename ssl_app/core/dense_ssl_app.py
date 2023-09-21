@@ -163,26 +163,22 @@ class DenseSslApp(BaseApp):
         self.restoration_head.train()
 
         # Get image
-        image_original = data[0].unsqueeze(0)
-        image_spatially_augmented = data[1].unsqueeze(0)
+        image_1 = data[0].unsqueeze(0)
+        image_2 = data[1].unsqueeze(0)
 
         # Apply intensity augmentations to get first image view
-        image_intensity_augmented = self.style_aug.rand_aug(image_original[0, 0, ...].numpy().copy())
-        image_intensity_augmented[image_original[0, 0, ...].numpy() < 1e-2] = 0
-        image_intensity_augmented = torch.from_numpy(image_intensity_augmented[np.newaxis, np.newaxis, :, :, :])
+        image_1_intensity_augmented = self.style_aug.rand_aug(image_1[0, 0, ...].numpy().copy())
+        image_1_intensity_augmented[image_1[0, 0, ...].numpy() < 1e-2] = 0
+        image_1_intensity_augmented = torch.from_numpy(image_1_intensity_augmented[np.newaxis, np.newaxis, :, :, :])
 
         # Send images to device
-        image_original = image_original.to(self.device)
-        image_intensity_augmented = image_intensity_augmented.to(self.device)
-        image_spatially_augmented = image_spatially_augmented.to(self.device)
+        image_1 = image_1.to(self.device)
+        image_1_intensity_augmented = image_1_intensity_augmented.to(self.device)
+        image_2 = image_2.to(self.device)
 
         # Apply spatial augmentations to get second image view
-        # mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
-        # image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
-
-        # Apply rotaion90 to get third image view
-        # ax = np.random.permutation(3)[:2]
-        # image_rotated = torch.rot90(torch.clone(image_original), k=1, dims=(ax[0]+2, ax[1]+2))
+        mat, code_spa = self.spatial_aug.rand_coords(image_1.shape[2:])
+        image_1_spatially_augmented = self.spatial_aug.augment_spatial(image_1, code_spa=code_spa)
 
         # image_original_np = image_original.data.cpu().numpy()[0, 0, ...].copy()
         # center_slice = image_original_np.shape[2] // 2
@@ -209,34 +205,33 @@ class DenseSslApp(BaseApp):
         #     plt.close()
 
         # Extract features
-        x_original, features_original = self.feature_extractor(image_original)
-        # x_rotated, features_rotated = self.feature_extractor(image_rotated)
-        _, features_intensity_augmented = self.feature_extractor(image_intensity_augmented)
-        x_spatially_augmented, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+        shallow_features_1, local_features_1 = self.feature_extractor(image_1)
+        shallow_features_2, local_features_2 = self.feature_extractor(image_2)
+        _, local_features_1_intensity_augmented = self.feature_extractor(image_1_intensity_augmented)
+        _, local_features_1_spatially_augmented = self.feature_extractor(image_1_spatially_augmented)
 
-        flow = coupled_convex(feat_fix=x_original, feat_mov=x_spatially_augmented, use_ice=False, img_shape=image_original.shape[2:])
-        grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_original.shape[2], image_original.shape[3], image_original.shape[4]))
-        image_warped = functional.grid_sample(image_spatially_augmented, grid + flow.permute(0, 2, 3, 4, 1), mode='bilinear')
+        # Warp 1st and 2nd images
+        global_registration_flow = coupled_convex(feat_fix=shallow_features_1, feat_mov=shallow_features_2, use_ice=False, img_shape=image_1.shape[2:])
+        grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_1.shape[2], image_1.shape[3], image_1.shape[4]))
+        image_2_warped = functional.grid_sample(image_2, grid + global_registration_flow.permute(0, 2, 3, 4, 1), mode='bilinear')
 
         # Warp spatially augmented version to the original image
-        # flow = self.elastic_registration_head(features_original, features_spatially_augmented)
-        # image_warped = self.elastic_transform(image_spatially_augmented, flow)
+        local_registration_flow = self.elastic_registration_head(local_features_1, local_features_1_spatially_augmented)
+        image_1_spatially_augmented_warped = self.elastic_transform(image_1_spatially_augmented, local_registration_flow)
 
         # Restore original image from its intensity augmented version
-        image_restored = self.restoration_head(features_intensity_augmented)
-
-        # Rotate features of rotated image back to match features of original image
-        # features_rotated = torch.rot90(features_rotated, k=-1, dims=(ax[0]+2, ax[1]+2))
+        image_1_intensity_augmented_restored = self.restoration_head(local_features_1_intensity_augmented)
 
         # Calculate loss
-        # loss_restoration = self.losses_fns[0](features_original, features_rotated)
-        loss_restoration = self.losses_fns[0](image_restored, image_original)
-        loss_registration = self.losses_fns[1](image_warped, image_original)
-        loss_flow_regularization = self.losses_fns[2](flow)
+        loss_restoration = self.losses_fns[0](image_1_intensity_augmented_restored, image_1)
+        loss_global_registration = self.losses_fns[1](image_2_warped, image_1)
+        loss_local_registration = self.losses_fns[2](image_1_spatially_augmented_warped, image_1)
+        loss_flow_regularization = self.losses_fns[3](local_registration_flow)
 
         loss = \
             self.settings['loss']['weight_restoration'] * loss_restoration + \
-            self.settings['loss']['weight_registration'] * loss_registration + \
+            self.settings['loss']['weight_global_registration'] * loss_global_registration + \
+            self.settings['loss']['weight_local_registration'] * loss_local_registration + \
             self.settings['loss']['weight_flow_regularization'] * loss_flow_regularization
 
         # Backward pass
@@ -247,7 +242,8 @@ class DenseSslApp(BaseApp):
         # Prepare loss and metrics to logging
         batch_loss_list = list()
         batch_loss_list.append(loss_restoration.detach().cpu().numpy())
-        batch_loss_list.append(loss_registration.detach().cpu().numpy())
+        batch_loss_list.append(loss_global_registration.detach().cpu().numpy())
+        batch_loss_list.append(loss_local_registration.detach().cpu().numpy())
         batch_loss_list.append(loss_flow_regularization.detach().cpu().numpy())
 
         batch_metric_list = list()
@@ -262,63 +258,68 @@ class DenseSslApp(BaseApp):
         self.restoration_head.eval()
 
         # Get image and label
-        image_original = data['image'][0].unsqueeze(0)
+        image_1 = data['image'][0].unsqueeze(0)
+        image_2 = data['image'][1].unsqueeze(0)
         label = data['label'][0].unsqueeze(0)
-        image_spatially_augmented = data['image'][1].unsqueeze(0)
 
         # Apply intensity augmentations to get first image view
-        image_intensity_augmented = self.style_aug.rand_aug(image_original[0, 0, ...].numpy().copy())
-        image_intensity_augmented[image_original[0, 0, ...].numpy() < 1e-2] = 0
-        image_intensity_augmented = torch.from_numpy(image_intensity_augmented[np.newaxis, np.newaxis, :, :, :])
+        image_1_intensity_augmented = self.style_aug.rand_aug(image_1[0, 0, ...].numpy().copy())
+        image_1_intensity_augmented[image_1[0, 0, ...].numpy() < 1e-2] = 0
+        image_1_intensity_augmented = torch.from_numpy(image_1_intensity_augmented[np.newaxis, np.newaxis, :, :, :])
+
+        # Send images to device
+        image_1 = image_1.to(self.device)
+        image_1_intensity_augmented = image_1_intensity_augmented.to(self.device)
+        image_2 = image_2.to(self.device)
 
         # Send images and label to device
-        image_original = image_original.to(self.device)
-        image_intensity_augmented = image_intensity_augmented.to(self.device)
-        image_spatially_augmented = image_spatially_augmented.to(self.device)
+        image_1 = image_1.to(self.device)
+        image_1_intensity_augmented = image_1_intensity_augmented.to(self.device)
+        image_2 = image_2.to(self.device)
         label = label.to(self.device)
 
         # Apply spatial augmentations to get second image view
-        # mat, code_spa = self.spatial_aug.rand_coords(image_original.shape[2:])
-        # image_spatially_augmented = self.spatial_aug.augment_spatial(image_original, code_spa=code_spa)
+        # Apply spatial augmentations to get second image view
+        mat, code_spa = self.spatial_aug.rand_coords(image_1.shape[2:])
+        image_1_spatially_augmented = self.spatial_aug.augment_spatial(image_1, code_spa=code_spa)
 
         with torch.no_grad():
-
             # Extract features
-            x_original, features_original = self.feature_extractor(image_original)
-            _, features_intensity_augmented = self.feature_extractor(image_intensity_augmented)
-            x_spatially_augmented, features_spatially_augmented = self.feature_extractor(image_spatially_augmented)
+            shallow_features_1, local_features_1 = self.feature_extractor(image_1)
+            shallow_features_2, local_features_2 = self.feature_extractor(image_2)
+            _, local_features_1_intensity_augmented = self.feature_extractor(image_1_intensity_augmented)
+            _, local_features_1_spatially_augmented = self.feature_extractor(image_1_spatially_augmented)
 
-            flow = coupled_convex(feat_fix=x_original, feat_mov=x_spatially_augmented, use_ice=False, img_shape=image_original.shape[2:])
-            grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_original.shape[2], image_original.shape[3], image_original.shape[4]))
-            image_warped = functional.grid_sample(image_spatially_augmented, grid + flow.permute(0, 2, 3, 4, 1), mode='bilinear')
+            # Warp 1st and 2nd images
+            global_registration_flow = coupled_convex(feat_fix=shallow_features_1, feat_mov=shallow_features_2, use_ice=False, img_shape=image_1.shape[2:])
+            grid = functional.affine_grid(torch.eye(3, 4).unsqueeze(0).cuda(), (1, 1, image_1.shape[2], image_1.shape[3], image_1.shape[4]))
+            image_2_warped = functional.grid_sample(image_2, grid + global_registration_flow.permute(0, 2, 3, 4, 1), mode='bilinear')
 
             # Warp spatially augmented version to the original image
-            # flow = self.elastic_registration_head(features_original, features_spatially_augmented)
-            # image_warped = self.elastic_transform(image_spatially_augmented, flow)
+            local_registration_flow = self.elastic_registration_head(local_features_1, local_features_1_spatially_augmented)
+            image_1_spatially_augmented_warped = self.elastic_transform(image_1_spatially_augmented, local_registration_flow)
 
             # Restore original image from its intensity augmented version
-            image_restored = self.restoration_head(features_intensity_augmented)
+            image_1_intensity_augmented_restored = self.restoration_head(local_features_1_intensity_augmented)
 
             # Calculate loss
-            loss_restoration = self.losses_fns[0](image_restored, image_original)
-            loss_registration = self.losses_fns[1](image_warped, image_original)
-            loss_flow_regularization = self.losses_fns[2](flow)
+            loss_restoration = self.losses_fns[0](image_1_intensity_augmented_restored, image_1)
+            loss_global_registration = self.losses_fns[1](image_2_warped, image_1)
+            loss_local_registration = self.losses_fns[2](image_1_spatially_augmented_warped, image_1)
+            loss_flow_regularization = self.losses_fns[3](local_registration_flow)
 
-        show_images(image_original, image_intensity_augmented, 'intensity augmentation', epoch, cur_iteration,
-                    self.vis_dir, self.mlops_task)
-        show_images(image_original, image_spatially_augmented, 'spatial augmentation', epoch, cur_iteration,
-                    self.vis_dir, self.mlops_task)
-        show_images(image_intensity_augmented, image_restored, 'imgage restored', epoch, cur_iteration,
-                    self.vis_dir, self.mlops_task)
-        show_images(image_original, image_warped, 'image warped', epoch, cur_iteration,
-                    self.vis_dir, self.mlops_task)
-        show_tsne(features_original, label, 'tsne', epoch, cur_iteration,
-                  self.vis_dir, self.mlops_task)
+        show_images(image_1, image_1_intensity_augmented, 'intensity augmentation', epoch, cur_iteration, self.vis_dir, self.mlops_task)
+        show_images(image_1, image_1_spatially_augmented, 'spatial augmentation', epoch, cur_iteration, self.vis_dir, self.mlops_task)
+        show_images(image_1_intensity_augmented, image_1_intensity_augmented_restored, 'restoration', epoch, cur_iteration, self.vis_dir, self.mlops_task)
+        show_images(image_1, image_2_warped, 'global registration', epoch, cur_iteration, self.vis_dir, self.mlops_task)
+        show_images(image_1, image_1_spatially_augmented_warped, 'local registration', epoch, cur_iteration, self.vis_dir, self.mlops_task)
+        show_tsne(local_features_1, label, 'tsne', epoch, cur_iteration, self.vis_dir, self.mlops_task)
 
         # Prepare loss and metrics to logging
         batch_loss_list = list()
         batch_loss_list.append(loss_restoration.detach().cpu().numpy())
-        batch_loss_list.append(loss_registration.detach().cpu().numpy())
+        batch_loss_list.append(loss_global_registration.detach().cpu().numpy())
+        batch_loss_list.append(loss_local_registration.detach().cpu().numpy())
         batch_loss_list.append(loss_flow_regularization.detach().cpu().numpy())
 
         batch_metric_list = list()

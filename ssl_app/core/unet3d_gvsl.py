@@ -65,6 +65,8 @@ class UNet3D_GVSL(torch.nn.Module):
 
         self.n_channels = n_channels
 
+        self.proj = torch.nn.Conv3d(chs[3], 16, kernel_size=1)
+
         self.inc = DoubleConv(n_channels, chs[0])
 
         self.down1 = Down(chs[0], chs[1])
@@ -98,9 +100,11 @@ class UNet3D_GVSL(torch.nn.Module):
         x4 = self.down3(x3)
         x5 = self.down4(x4)
 
+        prj = self.proj(x4)
+
         x = self.up1(x5, x4)
         x = self.up2(x, x3)
         x = self.up3(x, x2)
         x = self.up4(x, x1)
 
-        return x5, x
+        return prj, x

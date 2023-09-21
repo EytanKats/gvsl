@@ -1,7 +1,7 @@
 mlops_settings = {
     'use_mlops': True,
     'project_name': 'Label',
-    'task_name': 'sc_nako1000_pretraining_coupled_convex',
+    'task_name': 'sc_nako1000_pretraining_global_local',
     'task_type': 'training',
     'tags': [],
     'connect_arg_parser': False,
@@ -11,7 +11,7 @@ mlops_settings = {
 }
 
 manager_settings = {
-    'output_folder': '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_coupled_convex/',
+    'output_folder': '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_global_local/',
     'active_folds': [0],
     'restore_checkpoint': False,
     'restore_checkpoint_path': ''
@@ -48,7 +48,7 @@ dataset_settings = {
     #     'left_adrenal_gland': 11
     # }
 
-    'length': 100
+    'length': 200
 }
 
 transforms_settings = {
@@ -71,11 +71,13 @@ scheduler_settings = {
 
 loss_functions_settings = {
     'restoration_loss_name': 'restoration_mse',
-    'registration_loss_name': 'registration_ncc',
+    'global_registration_loss_name': 'global_registration_ncc',
+    'local_registration_loss_name': 'local_registration_mse',
     'flow_regularization_loss_name': 'flow_regularization_gradient',
     'weight_restoration': 1,
-    'weight_registration': 1,
-    'weight_flow_regularization': 0
+    'weight_global_registration': 1,
+    'weight_local_registration': 1,
+    'weight_flow_regularization': 1
 }
 
 metrics_settings = {
