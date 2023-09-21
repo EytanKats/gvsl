@@ -22,7 +22,8 @@ pretrained_weights = [
     # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-0.pth',
     # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_restoration/0/checkpoint/ckpt-49.pth',
     # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_registration_constrained/0/checkpoint/ckpt-49.pth',
-    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_coupled_convex/0/checkpoint/ckpt-49.pth'
+    # '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_coupled_convex/0/checkpoint/ckpt-49.pth',
+    '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_global_local/0/checkpoint/ckpt-44.pth'
 ]
 
 plot_names = [
@@ -34,7 +35,8 @@ plot_names = [
     # 'registration_restoration_1000steps',
     # 'registration_restoration_50000steps',
     # 'registration_constrained_50000steps',
-    'coupled_convex_50000steps'
+    # 'coupled_convex_50000steps',
+    'global_local_50000steps'
 ]
 
 
@@ -153,7 +155,7 @@ for data_idx, data in enumerate(val_loader):
                             labels_rot90_list[0], labels_rot90_list[1], labels_rot90_list[2], labels_rot90_list[5], labels_rot90_list[6]]),
             num_classes=10,  #len(labels),
             title=plot_name,
-            output_path=os.path.join(OUTPUT_DIR, f'{plot_name}_im{data_idx}_2images_ct.png'),
+            output_path=os.path.join(OUTPUT_DIR, f'{plot_name}_im{data_idx}_2images.png'),
             show=True)
 
         plot_tsne(
