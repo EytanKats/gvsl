@@ -1,7 +1,7 @@
 mlops_settings = {
     'use_mlops': True,
     'project_name': 'Label',
-    'task_name': 'sc_nako1000_pretraining_global_local',
+    'task_name': 'sc_nako1000_pretraining_fullwarping',
     'task_type': 'training',
     'tags': [],
     'connect_arg_parser': False,
@@ -11,7 +11,7 @@ mlops_settings = {
 }
 
 manager_settings = {
-    'output_folder': '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_global_local/',
+    'output_folder': '/mnt/share/experiments/label/gvsl/sc_nako1000_pretraining_fullwarping/',
     'active_folds': [0],
     'restore_checkpoint': False,
     'restore_checkpoint_path': ''
